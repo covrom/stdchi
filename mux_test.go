@@ -1550,76 +1550,19 @@ func TestMuxRegexp(t *testing.T) {
 	}
 }
 
-func TestMuxRegexp2(t *testing.T) {
-	r := NewRouter()
-	r.Get("/foo-{suffix:[a-z]{2,3}}.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(r.PathValue("suffix")))
-	})
-	ts := httptest.NewServer(r)
-	defer ts.Close()
-
-	if _, body := testRequest(t, ts, "GET", "/foo-.json", nil); body != "" {
-		t.Fatalf(body)
-	}
-	if _, body := testRequest(t, ts, "GET", "/foo-abc.json", nil); body != "abc" {
-		t.Fatalf(body)
-	}
-}
-
-func TestMuxRegexp3(t *testing.T) {
-	r := NewRouter()
-	r.Get("/one/{firstId:[a-z0-9-]+}/{secondId:[a-z]+}/first", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("first"))
-	})
-	r.Get("/one/{firstId:[a-z0-9-_]+}/{secondId:[0-9]+}/second", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("second"))
-	})
-	r.Delete("/one/{firstId:[a-z0-9-_]+}/{secondId:[0-9]+}/second", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("third"))
-	})
-
-	r.Route("/one", func(r Router) {
-		r.Get("/{dns:[a-z-0-9_]+}", func(writer http.ResponseWriter, request *http.Request) {
-			writer.Write([]byte("_"))
-		})
-		r.Get("/{dns:[a-z-0-9_]+}/info", func(writer http.ResponseWriter, request *http.Request) {
-			writer.Write([]byte("_"))
-		})
-		r.Delete("/{id:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
-			writer.Write([]byte("forth"))
-		})
-	})
-
-	ts := httptest.NewServer(r)
-	defer ts.Close()
-
-	if _, body := testRequest(t, ts, "GET", "/one/hello/peter/first", nil); body != "first" {
-		t.Fatalf(body)
-	}
-	if _, body := testRequest(t, ts, "GET", "/one/hithere/123/second", nil); body != "second" {
-		t.Fatalf(body)
-	}
-	if _, body := testRequest(t, ts, "DELETE", "/one/hithere/123/second", nil); body != "third" {
-		t.Fatalf(body)
-	}
-	if _, body := testRequest(t, ts, "DELETE", "/one/123", nil); body != "forth" {
-		t.Fatalf(body)
-	}
-}
-
 func TestMuxSubrouterWildcardParam(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "param:%v *:%v", r.PathValue("param"), r.PathValue("*"))
+		fmt.Fprintf(w, "param:%v *:%v", r.PathValue("param"), r.PathValue("tail"))
 	})
 
 	r := NewRouter()
 
 	r.Get("/bare/{param}", h)
-	r.Get("/bare/{param}/*", h)
+	r.Get("/bare/{param}/{tail...}", h)
 
 	r.Route("/case0", func(r Router) {
 		r.Get("/{param}", h)
-		r.Get("/{param}/*", h)
+		r.Get("/{param}/{tail...}", h)
 	})
 
 	ts := httptest.NewServer(r)
@@ -1677,11 +1620,11 @@ func TestMuxContextIsThreadSafe(t *testing.T) {
 
 func TestEscapedURLParams(t *testing.T) {
 	m := NewRouter()
-	m.Get("/api/{identifier}/{region}/{size}/{rotation}/*", func(w http.ResponseWriter, r *http.Request) {
+	m.Get("/api/{identifier}/{region}/{size}/{rotation}/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 
 		identifier := r.PathValue("identifier")
-		if identifier != "http:%2f%2fexample.com%2fimage.png" {
+		if identifier != "http://example.com/image.png" {
 			t.Errorf("identifier path parameter incorrect %s", identifier)
 			return
 		}
@@ -1842,7 +1785,7 @@ func BenchmarkMux(b *testing.B) {
 	mx.Get("/hi", h2)
 	mx.Post("/hi-post", h2) // used to benchmark 405 responses
 	mx.Get("/sup/{id}/and/{this}", h3)
-	mx.Get("/sup/{id}/{bar:foo}/{this}", h3)
+	mx.Get("/sup/{id}/{bar}/{this}", h3)
 
 	mx.Route("/sharing/{x}/{hash}", func(mx Router) {
 		mx.Get("/{$}", h4)       // subrouter-1

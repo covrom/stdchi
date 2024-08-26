@@ -187,6 +187,7 @@ func (mx *Mux) Mount(pattern string, handler http.Handler) {
 	mx.handle(mALL, pattern, StripSegments(pattern, handler))
 }
 
+// StripSegments works like http.StripPrefix, but skips entire segments (including wildcards) and provides path values ​​to subrouters.
 func StripSegments(pat string, h http.Handler) http.Handler {
 	wilds := wildcards(pat)
 	if len(wilds) == 0 {

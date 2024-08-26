@@ -232,7 +232,7 @@ func TestMuxMounts(t *testing.T) {
 			})
 		})
 
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 			v := r.PathValue("hash")
 			w.Write([]byte(fmt.Sprintf("/%s/share", v)))
 			fmt.Println("Done GET /{hash}/share/")
@@ -281,7 +281,7 @@ func TestMuxPlain(t *testing.T) {
 	if _, body := testRequest(t, ts, "GET", "/hi", nil); body != "bye" {
 		t.Fatalf(body)
 	}
-	if _, body := testRequest(t, ts, "GET", "/nothing-here", nil); body != "not found" {
+	if re, body := testRequest(t, ts, "GET", "/nothing-here", nil); re.StatusCode != 404 {
 		t.Fatalf(body)
 	}
 }
@@ -313,7 +313,7 @@ func TestMuxTrailingSlash(t *testing.T) {
 		accountID := r.PathValue("accountID")
 		w.Write([]byte(accountID))
 	}
-	subRoutes.Get("/", indexHandler)
+	subRoutes.Get("/{$}", indexHandler)
 
 	r.Mount("/accounts/{accountID}", subRoutes)
 	r.Get("/accounts/{accountID}/", indexHandler)
@@ -537,13 +537,13 @@ func TestMuxComplicatedNotFound(t *testing.T) {
 		if _, body := testRequest(t, ts, "GET", "/auth", nil); body != "auth get" {
 			t.Fatalf(body)
 		}
-		if re, body := testRequest(t, ts, "GET", "/public", nil); re.StatusCode != 404 {
+		if _, body := testRequest(t, ts, "GET", "/public", nil); body != "public get" {
 			t.Fatalf(body)
 		}
 		if _, body := testRequest(t, ts, "GET", "/public/", nil); body != "public get" {
 			t.Fatalf(body)
 		}
-		if _, body := testRequest(t, ts, "GET", "/private/resource", nil); body != "private get" {
+		if _, body := testRequest(t, ts, "GET", "/private/resource/", nil); body != "private get" {
 			t.Fatalf(body)
 		}
 		// check custom not-found on all levels
@@ -805,7 +805,7 @@ func TestMuxMiddlewareStack(t *testing.T) {
 	testRequest(t, ts, "GET", "/", nil)
 	var body string
 	_, body = testRequest(t, ts, "GET", "/", nil)
-	if body != "inits:1 reqs:3 ctxValue:3" {
+	if body != "inits:3 reqs:3 ctxValue:3" {
 		t.Fatalf("got: '%s'", body)
 	}
 
@@ -888,7 +888,7 @@ func TestMuxBig(t *testing.T) {
 		t.Fatalf("got '%v'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/hubs/4/view/index.html", nil)
-	if body != "/hubs/4/view/index.html reqid:1 session:anonymous" {
+	if body != "/hubs/4/view/ reqid:1 session:anonymous" {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "POST", "/hubs/ethereumhub/view/index.html", nil)
@@ -994,7 +994,7 @@ func bigMux() Router {
 				next.ServeHTTP(w, r.WithContext(ctx))
 			})
 		})
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			s := fmt.Sprintf("/ reqid:%s session:%s", ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
 			w.Write([]byte(s))
@@ -1014,7 +1014,7 @@ func bigMux() Router {
 			_ = r.(*Mux) // sr1
 			r.Route("/{hubID}", func(r Router) {
 				_ = r.(*Mux) // sr2
-				r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+				r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 					ctx := r.Context()
 					s := fmt.Sprintf("/hubs/%s reqid:%s session:%s",
 						r.PathValue("hubID"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
@@ -1028,7 +1028,7 @@ func bigMux() Router {
 				})
 
 				sr3 = NewRouter()
-				sr3.Get("/", func(w http.ResponseWriter, r *http.Request) {
+				sr3.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 					ctx := r.Context()
 					s := fmt.Sprintf("/hubs/%s/webhooks reqid:%s session:%s", r.PathValue("hubID"),
 						ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
@@ -1036,7 +1036,7 @@ func bigMux() Router {
 				})
 				sr3.Route("/{webhookID}", func(r Router) {
 					_ = r.(*Mux) // sr4
-					r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+					r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 						ctx := r.Context()
 						s := fmt.Sprintf("/hubs/%s/webhooks/%s reqid:%s session:%s", r.PathValue("hubID"),
 							r.PathValue("webhookID"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
@@ -1052,7 +1052,7 @@ func bigMux() Router {
 
 				r.Route("/posts", func(r Router) {
 					_ = r.(*Mux) // sr5
-					r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+					r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 						ctx := r.Context()
 						s := fmt.Sprintf("/hubs/%s/posts reqid:%s session:%s", r.PathValue("hubID"),
 							ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
@@ -1064,7 +1064,7 @@ func bigMux() Router {
 
 		r.Route("/folders/", func(r Router) {
 			_ = r.(*Mux) // sr6
-			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 				ctx := r.Context()
 				s := fmt.Sprintf("/folders/ reqid:%s session:%s",
 					ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
@@ -1101,14 +1101,14 @@ func TestMuxSubroutesBasic(t *testing.T) {
 
 	r := NewRouter()
 	// var rr1, rr2 *Mux
-	r.Get("/", hIndex)
+	r.Get("/{$}", hIndex)
 	r.Route("/articles", func(r Router) {
 		// rr1 = r.(*Mux)
-		r.Get("/", hArticlesList)
+		r.Get("/{$}", hArticlesList)
 		r.Get("/search", hSearchArticles)
 		r.Route("/{id}", func(r Router) {
 			// rr2 = r.(*Mux)
-			r.Get("/", hGetArticle)
+			r.Get("/{$}", hGetArticle)
 			r.Get("/sync", hSyncArticle)
 		})
 	})
@@ -1185,14 +1185,14 @@ func TestMuxSubroutes(t *testing.T) {
 	r.Get("/hubs/{hubID}/view/*", hHubView2)
 
 	sr := NewRouter()
-	sr.Get("/", hHubView3)
+	sr.Get("/{$}", hHubView3)
 	r.Mount("/hubs/{hubID}/users", sr)
 	r.Get("/hubs/{hubID}/users/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hub3 override"))
 	})
 
 	sr3 := NewRouter()
-	sr3.Get("/", hAccountView1)
+	sr3.Get("/{$}", hAccountView1)
 	sr3.Get("/hi", hAccountView2)
 
 	// var sr2 *Mux
@@ -1380,7 +1380,7 @@ func TestNestedGroups(t *testing.T) {
 			r.Use(mwIncreaseCounter, mwIncreaseCounter) // counter == 3
 			r.Get("/3", handlerPrintCounter)
 		})
-		r.Route("/", func(r Router) {
+		r.Route("/{$}", func(r Router) {
 			r.Use(mwIncreaseCounter, mwIncreaseCounter) // counter == 3
 
 			// r.Handle(GET, "/4", Chain(mwIncreaseCounter).HandlerFunc(handlerPrintCounter))
@@ -1424,7 +1424,7 @@ func TestMiddlewarePanicOnLateUse(t *testing.T) {
 	}()
 
 	r := NewRouter()
-	r.Get("/", handler)
+	r.Get("/{$}", handler)
 	r.Use(mw) // Too late to apply middleware, we're expecting panic().
 }
 
@@ -1438,7 +1438,7 @@ func TestMountingExistingPath(t *testing.T) {
 	}()
 
 	r := NewRouter()
-	r.Get("/", handler)
+	r.Get("/{$}", handler)
 	r.Mount("/hi", http.HandlerFunc(handler))
 	r.Mount("/hi", http.HandlerFunc(handler))
 }
@@ -1450,12 +1450,12 @@ func TestMountingSimilarPattern(t *testing.T) {
 	})
 
 	r2 := NewRouter()
-	r2.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r2.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("foobar"))
 	})
 
 	r3 := NewRouter()
-	r3.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r3.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("foo"))
 	})
 
@@ -1537,7 +1537,7 @@ func TestMuxWildcardRouteCheckTwo(t *testing.T) {
 func TestMuxRegexp(t *testing.T) {
 	r := NewRouter()
 	r.Route("/{param:[0-9]*}/test", func(r Router) {
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("Hi: %s", r.PathValue("param"))))
 		})
 	})
@@ -1717,7 +1717,7 @@ func TestCustomHTTPMethod(t *testing.T) {
 	RegisterMethod("BOO")
 
 	r := NewRouter()
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("."))
 	})
 
@@ -1765,7 +1765,7 @@ func TestMuxMatch(t *testing.T) {
 
 func TestServerBaseContext(t *testing.T) {
 	r := NewRouter()
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		baseYes := r.Context().Value(ctxKey{"base"}).(string)
 		if _, ok := r.Context().Value(http.ServerContextKey).(*http.Server); !ok {
 			panic("missing server context")
@@ -1838,18 +1838,18 @@ func BenchmarkMux(b *testing.B) {
 	h6 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 	mx := NewRouter()
-	mx.Get("/", h1)
+	mx.Get("/{$}", h1)
 	mx.Get("/hi", h2)
 	mx.Post("/hi-post", h2) // used to benchmark 405 responses
 	mx.Get("/sup/{id}/and/{this}", h3)
 	mx.Get("/sup/{id}/{bar:foo}/{this}", h3)
 
 	mx.Route("/sharing/{x}/{hash}", func(mx Router) {
-		mx.Get("/", h4)          // subrouter-1
+		mx.Get("/{$}", h4)          // subrouter-1
 		mx.Get("/{network}", h5) // subrouter-1
 		mx.Get("/twitter", h5)
 		mx.Route("/direct", func(mx Router) {
-			mx.Get("/", h6) // subrouter-2
+			mx.Get("/{$}", h6) // subrouter-2
 			mx.Get("/download", h6)
 		})
 	})

@@ -38,6 +38,18 @@ func wildcards(s string) []string {
 	return wilds
 }
 
+func uniWildcards(s string) []string {
+	wilds := wildcards(s)
+	uniWilds := wilds[:0]
+	for _, ws := range wilds {
+		if ws == "" {
+			continue
+		}
+		uniWilds = append(uniWilds, ws)
+	}
+	return uniWilds
+}
+
 func toWildcard(s string) string {
 	if !(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
 		return ""

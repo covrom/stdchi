@@ -30,18 +30,11 @@ func (mx *Mux) mwsHandler(pattern string, h http.Handler) http.Handler {
 }
 
 func mwWildcards(pattern string, next http.Handler) http.Handler {
-	wilds := wildcards(pattern)
-	uniWilds := wilds[:0]
-	for _, ws := range wilds {
-		if ws == "" {
-			continue
-		}
-		uniWilds = append(uniWilds, ws)
-	}
+	wilds := uniWildcards(pattern)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		wcs := wildcardsFromContext(ctx)
-		for _, ws := range uniWilds {
+		for _, ws := range wilds {
 			wcs[ws] = r.PathValue(ws)
 		}
 		ctx = withWildcards(ctx, wcs)

@@ -1232,7 +1232,7 @@ func TestMuxSubroutes(t *testing.T) {
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
 	}
-	_, body = testRequest(t, ts, "GET", "/accounts/44/", nil)
+	_, body = testRequest(t, ts, "GET", "/accounts/44", nil)
 	expected = "account1"
 	if body != expected {
 		t.Fatalf("request:%s expected:%s got:%s", "GET /accounts/44", expected, body)

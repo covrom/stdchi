@@ -892,7 +892,7 @@ func TestMuxBig(t *testing.T) {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "POST", "/hubs/ethereumhub/view/index.html", nil)
-	if body != "/hubs/ethereumhub/view/index.html reqid:1 session:anonymous" {
+	if body != "/hubs/ethereumhub/view/ reqid:1 session:anonymous" {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/", nil)

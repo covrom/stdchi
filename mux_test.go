@@ -888,11 +888,11 @@ func TestMuxBig(t *testing.T) {
 		t.Fatalf("got '%v'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/hubs/4/view/index.html", nil)
-	if body != "/hubs/4/view/ reqid:1 session:anonymous" {
+	if body != "/hubs/4/view/index.html reqid:1 session:anonymous" {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "POST", "/hubs/ethereumhub/view/index.html", nil)
-	if body != "/hubs/ethereumhub/view/ reqid:1 session:anonymous" {
+	if body != "/hubs/ethereumhub/view/index.html reqid:1 session:anonymous" {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/", nil)
@@ -907,7 +907,7 @@ func TestMuxBig(t *testing.T) {
 	if body != "/woot/444/hiiii" {
 		t.Fatalf("got '%s'", body)
 	}
-	_, body = testRequest(t, ts, "GET", "/hubs/123", nil)
+	_, body = testRequest(t, ts, "GET", "/hubs/123/", nil)
 	expected = "/hubs/123 reqid:1 session:elvis"
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
@@ -916,11 +916,11 @@ func TestMuxBig(t *testing.T) {
 	if body != "/hubs/123/touch reqid:1 session:elvis" {
 		t.Fatalf("got '%s'", body)
 	}
-	_, body = testRequest(t, ts, "GET", "/hubs/123/webhooks", nil)
+	_, body = testRequest(t, ts, "GET", "/hubs/123/webhooks/", nil)
 	if body != "/hubs/123/webhooks reqid:1 session:elvis" {
 		t.Fatalf("got '%s'", body)
 	}
-	_, body = testRequest(t, ts, "GET", "/hubs/123/posts", nil)
+	_, body = testRequest(t, ts, "GET", "/hubs/123/posts/", nil)
 	if body != "/hubs/123/posts reqid:1 session:elvis" {
 		t.Fatalf("got '%s'", body)
 	}
@@ -974,16 +974,16 @@ func bigMux() Router {
 				ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
 			w.Write([]byte(s))
 		})
-		r.Get("/hubs/{hubID}/view/*", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/hubs/{hubID}/view/{tail...}", func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			s := fmt.Sprintf("/hubs/%s/view/%s reqid:%s session:%s", r.PathValue("hubID"),
-				r.PathValue("*"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
+				r.PathValue("tail"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
 			w.Write([]byte(s))
 		})
-		r.Post("/hubs/{hubSlug}/view/*", func(w http.ResponseWriter, r *http.Request) {
+		r.Post("/hubs/{hubSlug}/view/{tail...}", func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			s := fmt.Sprintf("/hubs/%s/view/%s reqid:%s session:%s", r.PathValue("hubSlug"),
-				r.PathValue("*"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
+				r.PathValue("tail"), ctx.Value(ctxKey{"requestID"}), ctx.Value(ctxKey{"session.user"}))
 			w.Write([]byte(s))
 		})
 	})
@@ -1005,8 +1005,8 @@ func bigMux() Router {
 			w.Write([]byte(s))
 		})
 
-		r.Get("/woot/{wootID}/*", func(w http.ResponseWriter, r *http.Request) {
-			s := fmt.Sprintf("/woot/%s/%s", r.PathValue("wootID"), r.PathValue("*"))
+		r.Get("/woot/{wootID}/{tail...}", func(w http.ResponseWriter, r *http.Request) {
+			s := fmt.Sprintf("/woot/%s/%s", r.PathValue("wootID"), r.PathValue("tail"))
 			w.Write([]byte(s))
 		})
 

@@ -234,7 +234,7 @@ func StripSegments(pat string, h http.Handler) http.Handler {
 			r2 = r2.WithContext(ctx)
 			h.ServeHTTP(w, r2)
 		} else {
-			http.NotFound(w, r)
+			h.ServeHTTP(w, r)
 		}
 	})
 }

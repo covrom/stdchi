@@ -23,15 +23,29 @@ func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mx.stdmux.ServeHTTP(w, r)
 }
 
-func (mx *Mux) mwsHandler(h http.Handler) http.Handler {
+func (mx *Mux) mwsHandler(pattern string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		chain(mx.middlewares, mwWildcards(h)).ServeHTTP(w, r)
+		chain(mx.middlewares, mwWildcards(pattern, h)).ServeHTTP(w, r)
 	})
 }
 
-func mwWildcards(next http.Handler) http.Handler {
+func mwWildcards(pattern string, next http.Handler) http.Handler {
+	wilds := wildcards(pattern)
+	uniWilds := wilds[:0]
+	for _, ws := range wilds {
+		if ws == "" {
+			continue
+		}
+		uniWilds = append(uniWilds, ws)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wcs := wildcardsFromContext(r.Context())
+		ctx := r.Context()
+		wcs := wildcardsFromContext(ctx)
+		for _, ws := range uniWilds {
+			wcs[ws] = r.PathValue(ws)
+		}
+		ctx = withWildcards(ctx, wcs)
+		r = r.WithContext(ctx)
 		for k, v := range wcs {
 			r.SetPathValue(k, v)
 		}
@@ -244,11 +258,11 @@ func (mx *Mux) handle(method methodTyp, pattern string, handler http.Handler) {
 	}
 
 	if method&mALL == mALL {
-		mx.stdmux.Handle(pattern, mx.mwsHandler(handler))
+		mx.stdmux.Handle(pattern, mx.mwsHandler(pattern, handler))
 	} else {
 		for k, v := range methodMap {
 			if method&v == v {
-				mx.stdmux.Handle(fmt.Sprintf("%s %s", k, pattern), mx.mwsHandler(handler))
+				mx.stdmux.Handle(fmt.Sprintf("%s %s", k, pattern), mx.mwsHandler(pattern, handler))
 			}
 		}
 	}

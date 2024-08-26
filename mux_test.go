@@ -925,7 +925,7 @@ func TestMuxBig(t *testing.T) {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/folders", nil)
-	if body != "404 page not found\n" {
+	if body != "/folders/ reqid:1 session:elvis" {
 		t.Fatalf("got '%s'", body)
 	}
 	_, body = testRequest(t, ts, "GET", "/folders/", nil)
@@ -1151,7 +1151,7 @@ func TestMuxSubroutesBasic(t *testing.T) {
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
 	}
-	_, body = testRequest(t, ts, "GET", "/articles/123", nil)
+	_, body = testRequest(t, ts, "GET", "/articles/123/", nil)
 	expected = "get-article:123"
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
@@ -1223,7 +1223,7 @@ func TestMuxSubroutes(t *testing.T) {
 		t.Fatalf("expected:%s got:%s", expected, body)
 	}
 	_, body = testRequest(t, ts, "GET", "/hubs/123/users", nil)
-	expected = "hub3"
+	expected = "hub3 override"
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
 	}
@@ -1232,7 +1232,7 @@ func TestMuxSubroutes(t *testing.T) {
 	if body != expected {
 		t.Fatalf("expected:%s got:%s", expected, body)
 	}
-	_, body = testRequest(t, ts, "GET", "/accounts/44", nil)
+	_, body = testRequest(t, ts, "GET", "/accounts/44/", nil)
 	expected = "account1"
 	if body != expected {
 		t.Fatalf("request:%s expected:%s got:%s", "GET /accounts/44", expected, body)

@@ -1305,7 +1305,7 @@ func TestServeHTTPExistingContext(t *testing.T) {
 		}
 		req = req.WithContext(tc.Ctx)
 		r.ServeHTTP(resp, req)
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
@@ -1772,7 +1772,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 		return nil, ""
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 		return nil, ""

@@ -1,5 +1,6 @@
 # stdchi
 Go 1.22+ standard http router wrapper with API like chi router.
+It uses a new syntax for path values ​​within groups and subroutes.
 
 Example:
 

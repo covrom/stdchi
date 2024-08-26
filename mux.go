@@ -184,18 +184,16 @@ func (mx *Mux) Mount(pattern string, handler http.Handler) {
 		pattern += "/"
 	}
 
-	mx.handle(mALL, pattern, StripSegments(wildcards(pattern), handler))
+	mx.handle(mALL, pattern, StripSegments(pattern, handler))
 }
 
-func StripSegments(wilds []string, h http.Handler) http.Handler {
+func StripSegments(pat string, h http.Handler) http.Handler {
+	wilds := wildcards(pat)
 	if len(wilds) == 0 {
 		return h
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := stripToLastSlash(r.URL.Path, len(wilds))
-
-		fmt.Println("strip", r.URL.Path, "to", p)
-
 		rp := stripToLastSlash(r.URL.RawPath, len(wilds))
 		if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
 			r2 := (&http.Request{

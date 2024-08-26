@@ -25,7 +25,17 @@ func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (mx *Mux) mwsHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		chain(mx.middlewares, h).ServeHTTP(w, r)
+		chain(mx.middlewares, mwWildcards(h)).ServeHTTP(w, r)
+	})
+}
+
+func mwWildcards(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wcs := wildcardsFromContext(r.Context())
+		for k, v := range wcs {
+			r.SetPathValue(k, v)
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -197,88 +207,28 @@ func StripSegments(pat string, h http.Handler) http.Handler {
 		p := stripToLastSlash(r.URL.Path, len(wilds))
 		rp := stripToLastSlash(r.URL.RawPath, len(wilds))
 		if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
-			r2 := (&http.Request{
-				Method:           r.Method,
-				Proto:            r.Proto,
-				ProtoMajor:       r.ProtoMajor,
-				ProtoMinor:       r.ProtoMinor,
-				Header:           r.Header,
-				Body:             r.Body,
-				GetBody:          r.GetBody,
-				ContentLength:    r.ContentLength,
-				TransferEncoding: r.TransferEncoding,
-				Close:            r.Close,
-				Host:             r.Host,
-				Form:             r.Form,
-				PostForm:         r.PostForm,
-				MultipartForm:    r.MultipartForm,
-				Trailer:          r.Trailer,
-				RemoteAddr:       r.RemoteAddr,
-				RequestURI:       r.RequestURI,
-				TLS:              r.TLS,
-				Cancel:           r.Cancel,
-				Response:         r.Response,
-			}).WithContext(r.Context())
-
+			r2 := new(http.Request)
+			*r2 = *r
 			r2.URL = new(url.URL)
 			*r2.URL = *r.URL
 			r2.URL.Path = p
 			r2.URL.RawPath = rp
 
+			ctx := r.Context()
+			wcs := wildcardsFromContext(ctx)
 			for _, ws := range wilds {
 				if ws == "" {
 					continue
 				}
-				r2.SetPathValue(ws, r.PathValue(ws))
+				wcs[ws] = r.PathValue(ws)
 			}
-
+			ctx = withWildcards(ctx, wcs)
+			r2 = r2.WithContext(ctx)
 			h.ServeHTTP(w, r2)
 		} else {
 			http.NotFound(w, r)
 		}
 	})
-}
-
-func wildcards(s string) []string {
-	var wilds []string
-
-	for len(s) > 0 {
-		idx := strings.IndexRune(s, '/')
-		if idx < 0 {
-			if ws := toWildcard(s); ws != "" {
-				wilds = append(wilds, ws)
-			}
-			break
-		}
-		wilds = append(wilds, toWildcard(s[:idx]))
-		s = s[idx+1:]
-	}
-
-	return wilds
-}
-
-func toWildcard(s string) string {
-	if !(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
-		return ""
-	}
-	if s == "{$}" {
-		return ""
-	}
-	return strings.TrimSuffix(s[1:len(s)-1], "...")
-}
-
-func stripToLastSlash(s string, cnt int) string {
-	pos := 0
-	for i, r := range s {
-		if r == '/' {
-			pos = i
-			cnt--
-			if cnt <= 0 {
-				break
-			}
-		}
-	}
-	return s[pos:]
 }
 
 // Middlewares returns a slice of middleware handler functions.

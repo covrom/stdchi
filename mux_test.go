@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -208,26 +209,51 @@ func TestMuxBasic(t *testing.T) {
 
 func TestMuxMounts(t *testing.T) {
 	r := NewRouter()
+	r.Use(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println("Route /sharing")
+			r.Write(os.Stdout)
+			h.ServeHTTP(w, r)
+		})
+	})
 
 	r.Get("/{hash}", func(w http.ResponseWriter, r *http.Request) {
 		v := r.PathValue("hash")
 		w.Write([]byte(fmt.Sprintf("/%s", v)))
+		fmt.Println("Done GET /{hash}")
 	})
 
 	r.Route("/{hash}/share", func(r Router) {
+		r.Use(func(h http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Println("Route /{hash}/share/")
+				r.Write(os.Stdout)
+				h.ServeHTTP(w, r)
+			})
+		})
+
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			v := r.PathValue("hash")
 			w.Write([]byte(fmt.Sprintf("/%s/share", v)))
+			fmt.Println("Done GET /{hash}/share/")
 		})
 		r.Get("/{network}", func(w http.ResponseWriter, r *http.Request) {
 			v := r.PathValue("hash")
 			n := r.PathValue("network")
 			w.Write([]byte(fmt.Sprintf("/%s/share/%s", v, n)))
+			fmt.Println("Done GET /{hash}/share/{network}")
 		})
 	})
 
 	m := NewRouter()
 	m.Mount("/sharing", r)
+	m.Use(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println("Route /")
+			r.Write(os.Stdout)
+			h.ServeHTTP(w, r)
+		})
+	})
 
 	ts := httptest.NewServer(m)
 	defer ts.Close()
@@ -235,7 +261,7 @@ func TestMuxMounts(t *testing.T) {
 	if _, body := testRequest(t, ts, "GET", "/sharing/aBc", nil); body != "/aBc" {
 		t.Fatalf(body)
 	}
-	if _, body := testRequest(t, ts, "GET", "/sharing/aBc/share", nil); body != "/aBc/share" {
+	if _, body := testRequest(t, ts, "GET", "/sharing/aBc/share/", nil); body != "/aBc/share" {
 		t.Fatalf(body)
 	}
 	if _, body := testRequest(t, ts, "GET", "/sharing/aBc/share/twitter", nil); body != "/aBc/share/twitter" {
@@ -468,12 +494,18 @@ func TestMuxNestedMethodNotAllowed(t *testing.T) {
 
 func TestMuxComplicatedNotFound(t *testing.T) {
 	decorateRouter := func(r *Mux) {
+		r.Use(func(h http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.Write(os.Stdout)
+				h.ServeHTTP(w, r)
+			})
+		})
 		// Root router with groups
 		r.Get("/auth", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("auth get"))
 		})
-		r.Route("/public", func(r Router) {
-			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		r.Route("/public", func(r2 Router) {
+			r2.Get("/{$}", func(w http.ResponseWriter, rq *http.Request) {
 				w.Write([]byte("public get"))
 			})
 		})
@@ -481,7 +513,7 @@ func TestMuxComplicatedNotFound(t *testing.T) {
 		// sub router with groups
 		sub0 := NewRouter()
 		sub0.Route("/resource", func(r Router) {
-			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("private get"))
 			})
 		})
@@ -490,7 +522,7 @@ func TestMuxComplicatedNotFound(t *testing.T) {
 		// sub router with groups
 		sub1 := NewRouter()
 		sub1.Route("/resource", func(r Router) {
-			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("private get"))
 			})
 		})
@@ -505,7 +537,7 @@ func TestMuxComplicatedNotFound(t *testing.T) {
 		if _, body := testRequest(t, ts, "GET", "/auth", nil); body != "auth get" {
 			t.Fatalf(body)
 		}
-		if _, body := testRequest(t, ts, "GET", "/public", nil); body != "public get" {
+		if re, body := testRequest(t, ts, "GET", "/public", nil); re.StatusCode != 404 {
 			t.Fatalf(body)
 		}
 		if _, body := testRequest(t, ts, "GET", "/public/", nil); body != "public get" {

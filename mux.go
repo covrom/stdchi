@@ -3,17 +3,15 @@ package stdchi
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 var _ Router = &Mux{}
 
 type Mux struct {
-	handler     http.Handler
 	stdmux      *http.ServeMux
-	parent      *Mux
 	middlewares []func(http.Handler) http.Handler
-	inline      bool
 }
 
 func NewMux() *Mux {
@@ -22,12 +20,13 @@ func NewMux() *Mux {
 }
 
 func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if mx.handler == nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
+	mx.stdmux.ServeHTTP(w, r)
+}
 
-	mx.handler.ServeHTTP(w, r)
+func (mx *Mux) mwsHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chain(mx.middlewares, h).ServeHTTP(w, r)
+	})
 }
 
 // Use appends a middleware handler to the Mux middleware stack.
@@ -37,9 +36,6 @@ func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // change the course of the request execution, or set request-scoped values for
 // the next http.Handler.
 func (mx *Mux) Use(middlewares ...func(http.Handler) http.Handler) {
-	if mx.handler != nil {
-		panic("stdchi: all middlewares must be defined before routes on a mux")
-	}
 	mx.middlewares = append(mx.middlewares, middlewares...)
 }
 
@@ -139,23 +135,9 @@ func (mx *Mux) Trace(pattern string, handlerFn http.HandlerFunc) {
 
 // With adds inline middlewares for an endpoint handler.
 func (mx *Mux) With(middlewares ...func(http.Handler) http.Handler) Router {
-	// Similarly as in handle(), we must build the mux handler once additional
-	// middleware registration isn't allowed for this stack, like now.
-	if !mx.inline && mx.handler == nil {
-		mx.updateRouteHandler()
-	}
-
-	// Copy middlewares from parent inline muxs
-	var mws Middlewares
-	if mx.inline {
-		mws = make(Middlewares, len(mx.middlewares))
-		copy(mws, mx.middlewares)
-	}
-	mws = append(mws, middlewares...)
+	mws := append(mx.middlewares, middlewares...)
 
 	im := &Mux{
-		inline:      true,
-		parent:      mx,
 		stdmux:      mx.stdmux,
 		middlewares: mws,
 	}
@@ -198,31 +180,111 @@ func (mx *Mux) Mount(pattern string, handler http.Handler) {
 		panic(fmt.Sprintf("stdchi: attempting to Mount() a nil handler on '%s'", pattern))
 	}
 
-	if pattern == "" || pattern[len(pattern)-1] != '/' {
+	if pattern == "" || (pattern[len(pattern)-1] != '/' && !strings.HasSuffix(pattern, "...}")) {
 		pattern += "/"
 	}
-	pfx := strings.TrimSuffix(pattern, "/")
 
-	mx.handle(mALL, pattern, http.StripPrefix(pfx, handler))
+	mx.handle(mALL, pattern, StripSegments(wildcards(pattern), handler))
+}
+
+func StripSegments(wilds []string, h http.Handler) http.Handler {
+	if len(wilds) == 0 {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := stripToLastSlash(r.URL.Path, len(wilds))
+
+		fmt.Println("strip", r.URL.Path, "to", p)
+
+		rp := stripToLastSlash(r.URL.RawPath, len(wilds))
+		if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
+			r2 := (&http.Request{
+				Method:           r.Method,
+				Proto:            r.Proto,
+				ProtoMajor:       r.ProtoMajor,
+				ProtoMinor:       r.ProtoMinor,
+				Header:           r.Header,
+				Body:             r.Body,
+				GetBody:          r.GetBody,
+				ContentLength:    r.ContentLength,
+				TransferEncoding: r.TransferEncoding,
+				Close:            r.Close,
+				Host:             r.Host,
+				Form:             r.Form,
+				PostForm:         r.PostForm,
+				MultipartForm:    r.MultipartForm,
+				Trailer:          r.Trailer,
+				RemoteAddr:       r.RemoteAddr,
+				RequestURI:       r.RequestURI,
+				TLS:              r.TLS,
+				Cancel:           r.Cancel,
+				Response:         r.Response,
+			}).WithContext(r.Context())
+
+			r2.URL = new(url.URL)
+			*r2.URL = *r.URL
+			r2.URL.Path = p
+			r2.URL.RawPath = rp
+
+			for _, ws := range wilds {
+				if ws == "" {
+					continue
+				}
+				r2.SetPathValue(ws, r.PathValue(ws))
+			}
+
+			h.ServeHTTP(w, r2)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+}
+
+func wildcards(s string) []string {
+	var wilds []string
+
+	for len(s) > 0 {
+		idx := strings.IndexRune(s, '/')
+		if idx < 0 {
+			if ws := toWildcard(s); ws != "" {
+				wilds = append(wilds, ws)
+			}
+			break
+		}
+		wilds = append(wilds, toWildcard(s[:idx]))
+		s = s[idx+1:]
+	}
+
+	return wilds
+}
+
+func toWildcard(s string) string {
+	if !(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
+		return ""
+	}
+	if s == "{$}" {
+		return ""
+	}
+	return strings.TrimSuffix(s[1:len(s)-1], "...")
+}
+
+func stripToLastSlash(s string, cnt int) string {
+	pos := 0
+	for i, r := range s {
+		if r == '/' {
+			pos = i
+			cnt--
+			if cnt <= 0 {
+				break
+			}
+		}
+	}
+	return s[pos:]
 }
 
 // Middlewares returns a slice of middleware handler functions.
 func (mx *Mux) Middlewares() Middlewares {
 	return mx.middlewares
-}
-
-// routeHTTP routes a http.Request through the Mux routing tree to serve
-// the matching handler for a particular http method.
-func (mx *Mux) routeHTTP(w http.ResponseWriter, r *http.Request) {
-	mx.stdmux.ServeHTTP(w, r)
-}
-
-// updateRouteHandler builds the single mux handler that is a chain of the middleware
-// stack, as defined by calls to Use(), and the tree router (Mux) itself. After this
-// point, no other middlewares can be registered on this Mux's stack. But you can still
-// compose additional middlewares via Group()'s or using a chained middleware handler.
-func (mx *Mux) updateRouteHandler() {
-	mx.handler = chain(mx.middlewares, http.HandlerFunc(mx.routeHTTP))
 }
 
 // handle registers a http.Handler in the routing tree for a particular http method
@@ -232,26 +294,12 @@ func (mx *Mux) handle(method methodTyp, pattern string, handler http.Handler) {
 		panic(fmt.Sprintf("stdchi: routing pattern must begin with '/' in '%s'", pattern))
 	}
 
-	// Build the computed routing handler for this routing pattern.
-	if !mx.inline && mx.handler == nil {
-		mx.updateRouteHandler()
-	}
-
-	// Build endpoint handler with inline middlewares for the route
-	var h http.Handler
-	if mx.inline {
-		mx.handler = http.HandlerFunc(mx.routeHTTP)
-		h = Chain(mx.middlewares...).Handler(handler)
-	} else {
-		h = handler
-	}
-
 	if method&mALL == mALL {
-		mx.stdmux.Handle(pattern, h)
+		mx.stdmux.Handle(pattern, mx.mwsHandler(handler))
 	} else {
 		for k, v := range methodMap {
 			if method&v == v {
-				mx.stdmux.Handle(fmt.Sprintf("%s %s", k, pattern), h)
+				mx.stdmux.Handle(fmt.Sprintf("%s %s", k, pattern), mx.mwsHandler(handler))
 			}
 		}
 	}

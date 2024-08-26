@@ -24,8 +24,9 @@ func (mx *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (mx *Mux) mwsHandler(pattern string, h http.Handler) http.Handler {
+	h2 := mwWildcards(pattern, h)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		chain(mx.middlewares, mwWildcards(pattern, h)).ServeHTTP(w, r)
+		chain(mx.middlewares, h2).ServeHTTP(w, r)
 	})
 }
 

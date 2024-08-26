@@ -1,5 +1,5 @@
 # stdchi
-go 1.22+ standard http router wrapper with API like chi router.
+Go 1.22+ standard http router wrapper with API like chi router.
 
 Example:
 

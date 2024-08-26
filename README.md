@@ -1,15 +1,15 @@
 # stdchi
-Go 1.22+ standard http router wrapper with API like chi router.
+Go 1.22+ standard http router wrapper with API like [chi](https://github.com/go-chi/chi) router.
 It uses a new syntax for path values ​​within groups and subroutes.
 
 Example:
 
 ```go
-import chi "github.com/covrom/stdchi"
+import "github.com/covrom/stdchi"
 
 // ...
 
-r := NewRouter()
+r := stdchi.NewRouter()
 r.Use(func(h http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         fmt.Println("Route /sharing")
@@ -46,7 +46,7 @@ r.Route("/{hash}/share", func(r Router) {
     })
 })
 
-m := NewRouter()
+m := stdchi.NewRouter()
 m.Mount("/sharing", r)
 m.Use(func(h http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

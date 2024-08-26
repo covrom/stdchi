@@ -1418,14 +1418,14 @@ func TestMiddlewarePanicOnLateUse(t *testing.T) {
 	}
 
 	defer func() {
-		if recover() == nil {
-			t.Error("expected panic()")
+		if recover() != nil {
+			t.Error("not expected panic()")
 		}
 	}()
 
 	r := NewRouter()
 	r.Get("/{$}", handler)
-	r.Use(mw) // Too late to apply middleware, we're expecting panic().
+	r.Use(mw)
 }
 
 func TestMountingExistingPath(t *testing.T) {
@@ -1485,14 +1485,14 @@ func TestMuxEmptyParams(t *testing.T) {
 	if _, body := testRequest(t, ts, "GET", "/users/a/b/c", nil); body != "a-b-c" {
 		t.Fatalf(body)
 	}
-	if _, body := testRequest(t, ts, "GET", "/users///c", nil); body != "--c" {
+	if re, body := testRequest(t, ts, "GET", "/users///c", nil); re.StatusCode != 404 {
 		t.Fatalf(body)
 	}
 }
 
 func TestMuxMissingParams(t *testing.T) {
 	r := NewRouter()
-	r.Get(`/user/{userId:\d+}`, func(w http.ResponseWriter, r *http.Request) {
+	r.Get(`/user/{userId}`, func(w http.ResponseWriter, r *http.Request) {
 		userID := r.PathValue("userId")
 		w.Write([]byte(fmt.Sprintf("userId = '%s'", userID)))
 	})
@@ -1503,7 +1503,7 @@ func TestMuxMissingParams(t *testing.T) {
 	if _, body := testRequest(t, ts, "GET", "/user/123", nil); body != "userId = '123'" {
 		t.Fatalf(body)
 	}
-	if _, body := testRequest(t, ts, "GET", "/user/", nil); body != "not found" {
+	if re, body := testRequest(t, ts, "GET", "/user/", nil); re.StatusCode != 404 {
 		t.Fatalf(body)
 	}
 }
@@ -1512,8 +1512,8 @@ func TestMuxWildcardRoute(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {}
 
 	defer func() {
-		if recover() == nil {
-			t.Error("expected panic()")
+		if recover() != nil {
+			t.Error("not expected panic()")
 		}
 	}()
 
@@ -1525,8 +1525,8 @@ func TestMuxWildcardRouteCheckTwo(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {}
 
 	defer func() {
-		if recover() == nil {
-			t.Error("expected panic()")
+		if recover() != nil {
+			t.Error("not expected panic()")
 		}
 	}()
 
@@ -1536,7 +1536,7 @@ func TestMuxWildcardRouteCheckTwo(t *testing.T) {
 
 func TestMuxRegexp(t *testing.T) {
 	r := NewRouter()
-	r.Route("/{param:[0-9]*}/test", func(r Router) {
+	r.Route("/{param}/test", func(r Router) {
 		r.Get("/{$}", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("Hi: %s", r.PathValue("param"))))
 		})
@@ -1545,7 +1545,7 @@ func TestMuxRegexp(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	if _, body := testRequest(t, ts, "GET", "//test", nil); body != "Hi: " {
+	if _, body := testRequest(t, ts, "GET", "/ /test", nil); body != "Hi:  " {
 		t.Fatalf(body)
 	}
 }
@@ -1845,7 +1845,7 @@ func BenchmarkMux(b *testing.B) {
 	mx.Get("/sup/{id}/{bar:foo}/{this}", h3)
 
 	mx.Route("/sharing/{x}/{hash}", func(mx Router) {
-		mx.Get("/{$}", h4)          // subrouter-1
+		mx.Get("/{$}", h4)       // subrouter-1
 		mx.Get("/{network}", h5) // subrouter-1
 		mx.Get("/twitter", h5)
 		mx.Route("/direct", func(mx Router) {

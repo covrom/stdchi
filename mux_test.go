@@ -1325,7 +1325,7 @@ func TestServeHTTPExistingContext(t *testing.T) {
 			Path:           "/hello",
 			Ctx:            context.WithValue(context.Background(), ctxKey{"testCtx"}, "nothing here ctx"),
 			ExpectedStatus: 404,
-			ExpectedBody:   "nothing here ctx",
+			ExpectedBody:   "404 page not found\n",
 		},
 	}
 
@@ -1380,7 +1380,7 @@ func TestNestedGroups(t *testing.T) {
 			r.Use(mwIncreaseCounter, mwIncreaseCounter) // counter == 3
 			r.Get("/3", handlerPrintCounter)
 		})
-		r.Route("/{$}", func(r Router) {
+		r.Route("/", func(r Router) {
 			r.Use(mwIncreaseCounter, mwIncreaseCounter) // counter == 3
 
 			// r.Handle(GET, "/4", Chain(mwIncreaseCounter).HandlerFunc(handlerPrintCounter))

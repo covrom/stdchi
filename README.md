@@ -1,6 +1,8 @@
 # stdchi
 Go 1.22+ standard http router wrapper with API like [chi](https://github.com/go-chi/chi) router.
 It uses a new syntax for path values ​​within groups and subroutes.
+All of 'chi' routing syntax is supported. The middleware stack and path values providing is more efficient than chi.
+It supports lazy mounting. You can create an independent API and then mount it to another router. 
 
 Example:
 
